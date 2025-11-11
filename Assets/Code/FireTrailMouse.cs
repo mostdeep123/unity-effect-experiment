@@ -85,7 +85,7 @@ public class FireTrailMouse : MonoBehaviour
         var sizeOverLifetime = ps.sizeOverLifetime;
         var renderer = ps.GetComponent<ParticleSystemRenderer>();
 
-        // MAIN
+        // === MAIN SETTINGS ===
         main.loop = true;
         main.simulationSpace = ParticleSystemSimulationSpace.World;
         main.startLifetime = life;
@@ -93,17 +93,18 @@ public class FireTrailMouse : MonoBehaviour
         main.startSize = size;
         main.startColor = startColor;
         main.gravityModifier = 0f;
+        main.scalingMode = ParticleSystemScalingMode.Local;
 
-        // EMISSION
+        // === EMISSION ===
         emission.rateOverTime = emissionRate;
         emission.rateOverDistance = emissionRate * 0.5f;
 
-        // SHAPE
+        // === SHAPE ===
         shape.shapeType = ParticleSystemShapeType.Cone;
         shape.angle = 10f;
-        shape.radius = 0.02f;
+        shape.radius = 0.03f;
 
-        // COLOR LIFETIME
+        // === COLOR OVER LIFETIME ===
         colorOverLifetime.enabled = true;
         Gradient grad = new Gradient();
         grad.SetKeys(
@@ -119,21 +120,26 @@ public class FireTrailMouse : MonoBehaviour
         );
         colorOverLifetime.color = grad;
 
-        // SIZE LIFETIME
+        // === SIZE OVER LIFETIME ===
         sizeOverLifetime.enabled = true;
         AnimationCurve curve = new AnimationCurve();
         curve.AddKey(0f, 1f);
         curve.AddKey(1f, 0f);
         sizeOverLifetime.size = new ParticleSystem.MinMaxCurve(1f, curve);
 
-        // RENDERER
+        // === RENDERER ===
         renderer.renderMode = ParticleSystemRenderMode.Billboard;
+        renderer.sortingOrder = 2;
+        renderer.alignment = ParticleSystemRenderSpace.View;
         renderer.material = new Material(Shader.Find("Universal Render Pipeline/Particles/Unlit"));
-        renderer.trailMaterial = renderer.material;
-        renderer.material.SetFloat("_Surface", 1);
-        renderer.material.SetFloat("_Blend", 1);
+        renderer.material.SetFloat("_Surface", 1);     
+        renderer.material.SetFloat("_Blend", 1);      
         renderer.material.EnableKeyword("_ADDITIVE");
         renderer.material.SetColor("_BaseColor", Color.white);
+
+        // === Buat soft glow texture runtime ===
+        Texture2D softTex = MakeSoftParticleTexture(128);
+        renderer.material.mainTexture = softTex;
 
         ps.Play();
         return ps;
@@ -153,17 +159,21 @@ public class FireTrailMouse : MonoBehaviour
         Color32[] pixels = new Color32[size * size];
         Vector2 center = new Vector2(size / 2f, size / 2f);
         float maxDist = size / 2f;
+
         for (int y = 0; y < size; y++)
         {
             for (int x = 0; x < size; x++)
             {
                 float dist = Vector2.Distance(center, new Vector2(x, y)) / maxDist;
-                float alpha = Mathf.Clamp01(1f - dist * dist * dist * 2f);
+                float alpha = Mathf.Clamp01(1f - Mathf.Pow(dist, 2.5f)); 
                 pixels[y * size + x] = new Color(1f, 1f, 1f, alpha);
             }
         }
+
         tex.SetPixels32(pixels);
         tex.Apply();
+        tex.filterMode = FilterMode.Bilinear;
+        tex.wrapMode = TextureWrapMode.Clamp;
         return tex;
     }
 
