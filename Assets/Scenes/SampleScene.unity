@@ -4935,73 +4935,6 @@ ParticleSystem:
         m_PostInfinity: 2
         m_RotationOrder: 4
     vectorLabel1_3: W
---- !u!21 &263595279
-Material:
-  serializedVersion: 8
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_Name: Universal Render Pipeline/Particles/Unlit
-  m_Shader: {fileID: 4800000, guid: 0406db5a14f94604a8c57ccfbc9f3b46, type: 3}
-  m_ValidKeywords: []
-  m_InvalidKeywords:
-  - _FLIPBOOKBLENDING_OFF
-  m_LightmapFlags: 4
-  m_EnableInstancingVariants: 0
-  m_DoubleSidedGI: 0
-  m_CustomRenderQueue: -1
-  stringTagMap: {}
-  disabledShaderPasses: []
-  m_SavedProperties:
-    serializedVersion: 3
-    m_TexEnvs:
-    - _BaseMap:
-        m_Texture: {fileID: 0}
-        m_Scale: {x: 1, y: 1}
-        m_Offset: {x: 0, y: 0}
-    - _BumpMap:
-        m_Texture: {fileID: 0}
-        m_Scale: {x: 1, y: 1}
-        m_Offset: {x: 0, y: 0}
-    - _EmissionMap:
-        m_Texture: {fileID: 0}
-        m_Scale: {x: 1, y: 1}
-        m_Offset: {x: 0, y: 0}
-    m_Ints: []
-    m_Floats:
-    - _AlphaClip: 0
-    - _Blend: 0
-    - _BlendOp: 0
-    - _CameraFadingEnabled: 0
-    - _CameraFarFadeDistance: 2
-    - _CameraNearFadeDistance: 1
-    - _ColorMode: 0
-    - _Cull: 2
-    - _Cutoff: 0.5
-    - _DistortionBlend: 0.5
-    - _DistortionEnabled: 0
-    - _DistortionStrength: 1
-    - _DistortionStrengthScaled: 0.1
-    - _DstBlend: 0
-    - _FlipbookBlending: 0
-    - _FlipbookMode: 0
-    - _Mode: 0
-    - _QueueOffset: 0
-    - _SoftParticlesEnabled: 0
-    - _SoftParticlesFarFadeDistance: 1
-    - _SoftParticlesNearFadeDistance: 0
-    - _SrcBlend: 1
-    - _Surface: 0
-    - _ZWrite: 1
-    m_Colors:
-    - _BaseColor: {r: 1, g: 1, b: 1, a: 1}
-    - _BaseColorAddSubDiff: {r: 0, g: 0, b: 0, a: 0}
-    - _CameraFadeParams: {r: 0, g: 0, b: 0, a: 0}
-    - _Color: {r: 1, g: 1, b: 1, a: 1}
-    - _EmissionColor: {r: 0, g: 0, b: 0, a: 1}
-    - _SoftParticleFadeParams: {r: 0, g: 0, b: 0, a: 0}
-  m_BuildTextureStacks: []
 --- !u!1 &306881151
 GameObject:
   m_ObjectHideFlags: 0
@@ -10377,10 +10310,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: abf9bdd40127e1c49bf7d484e213971d, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  additiveMat: {fileID: 263595279}
-  groundY: 0
-  stopDelay: 0.2
-  moveThreshold: 0.01
 --- !u!1 &777316109
 GameObject:
   m_ObjectHideFlags: 0
@@ -24911,13 +24840,14 @@ GameObject:
   m_Component:
   - component: {fileID: 1080201845}
   - component: {fileID: 1080201846}
+  - component: {fileID: 1080201847}
   m_Layer: 0
   m_Name: FireTrail
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!4 &1080201845
 Transform:
   m_ObjectHideFlags: 0
@@ -24940,7 +24870,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1080201844}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: b33cae9c97056414db749490d09ab153, type: 3}
   m_Name: 
@@ -24949,6 +24879,18 @@ MonoBehaviour:
   stopFadeDelay: 0.4
   distanceEmissionRate: 8
   zOffset: 0.1
+--- !u!114 &1080201847
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1080201844}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: abf9bdd40127e1c49bf7d484e213971d, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
 --- !u!1 &1152306607
 GameObject:
   m_ObjectHideFlags: 0

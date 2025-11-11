@@ -131,15 +131,27 @@ public class FireTrailMouse : MonoBehaviour
         renderer.renderMode = ParticleSystemRenderMode.Billboard;
         renderer.sortingOrder = 2;
         renderer.alignment = ParticleSystemRenderSpace.View;
-        renderer.material = new Material(Shader.Find("Universal Render Pipeline/Particles/Unlit"));
-        renderer.material.SetFloat("_Surface", 1);     
-        renderer.material.SetFloat("_Blend", 1);      
-        renderer.material.EnableKeyword("_ADDITIVE");
-        renderer.material.SetColor("_BaseColor", Color.white);
 
-        // === Buat soft glow texture runtime ===
+        // === MATERIAL (URP Additive Glow) ===
+        Material mat = new Material(Shader.Find("Universal Render Pipeline/Unlit"));
+        mat.SetColor("_BaseColor", Color.white);
+
+        // Force additive blending transparan
+        mat.SetInt("_Surface", 1); // transparent surface
+        mat.SetInt("_Blend", 1);   // alpha blending mode
+        mat.SetInt("_ZWrite", 0);
+        mat.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.One);
+        mat.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.One);
+        mat.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent;
+        mat.EnableKeyword("_BLENDMODE_ADDITIVE");
+
+        // === TEXTURE (soft glow radial) ===
         Texture2D softTex = MakeSoftParticleTexture(128);
-        renderer.material.mainTexture = softTex;
+        softTex.filterMode = FilterMode.Trilinear;
+        softTex.wrapMode = TextureWrapMode.Clamp;
+        mat.mainTexture = softTex;
+
+        renderer.material = mat;
 
         ps.Play();
         return ps;
@@ -158,23 +170,24 @@ public class FireTrailMouse : MonoBehaviour
         Texture2D tex = new Texture2D(size, size, TextureFormat.RGBA32, false);
         Color32[] pixels = new Color32[size * size];
         Vector2 center = new Vector2(size / 2f, size / 2f);
-        float maxDist = size / 2f;
+        float radius = size / 2f;
 
         for (int y = 0; y < size; y++)
         {
             for (int x = 0; x < size; x++)
             {
-                float dist = Vector2.Distance(center, new Vector2(x, y)) / maxDist;
-                float alpha = Mathf.Clamp01(1f - Mathf.Pow(dist, 2.5f)); 
-                pixels[y * size + x] = new Color(1f, 1f, 1f, alpha);
+                float dist = Vector2.Distance(center, new Vector2(x, y)) / radius;
+                float alpha = Mathf.Exp(-dist * dist * 5f); 
+                float brightness = Mathf.Pow(alpha, 0.6f);  
+                pixels[y * size + x] = new Color(brightness, brightness, brightness, alpha);
             }
         }
 
         tex.SetPixels32(pixels);
         tex.Apply();
-        tex.filterMode = FilterMode.Bilinear;
+        tex.filterMode = FilterMode.Trilinear;
+        tex.anisoLevel = 4;
         tex.wrapMode = TextureWrapMode.Clamp;
         return tex;
     }
-
 }
