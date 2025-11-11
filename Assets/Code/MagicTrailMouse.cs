@@ -5,8 +5,8 @@ public class MagicTrailMouse : MonoBehaviour
 {
     private ParticleSystem coreLayer;
     private ParticleSystem trailLayer;
+    private ParticleSystem sparkLayer;
     private Vector3 lastMousePos;
-    private bool isMoving;
 
     void Start()
     {
@@ -15,28 +15,32 @@ public class MagicTrailMouse : MonoBehaviour
 
     void Update()
     {
+        if (Camera.main == null) return;
+
         Vector3 mousePos = Input.mousePosition;
         mousePos.z = 10f;
         Vector3 worldPos = Camera.main.ScreenToWorldPoint(mousePos);
 
-        if (Vector3.Distance(lastMousePos, worldPos) > 0.02f)
-        {
-            isMoving = true;
-            transform.position = worldPos;
+        // Gerak threshold kecil biar gak flicker
+        bool isMoving = Vector3.Distance(lastMousePos, worldPos) > 0.02f;
+        transform.position = worldPos;
 
+        if (isMoving)
+        {
             if (!coreLayer.isEmitting)
             {
                 coreLayer.Play();
                 trailLayer.Play();
+                sparkLayer.Play();
             }
         }
         else
         {
-            isMoving = false;
             if (coreLayer.isEmitting)
             {
                 coreLayer.Stop(true, ParticleSystemStopBehavior.StopEmitting);
                 trailLayer.Stop(true, ParticleSystemStopBehavior.StopEmitting);
+                sparkLayer.Stop(true, ParticleSystemStopBehavior.StopEmitting);
             }
         }
 
@@ -45,19 +49,44 @@ public class MagicTrailMouse : MonoBehaviour
 
     private void CreateTrailEffect()
     {
-        // Kepala putih terang (inti)
+        // Inti api putih–kuning
         coreLayer = CreateParticleLayer(
             "Core",
             new Color(1f, 0.95f, 0.8f, 1f),
-            new Color(1f, 0.9f, 0.3f, 0.4f),
-            0.09f, 0.25f, 1f, 100f);
+            new Color(1f, 0.8f, 0.3f, 0f),
+            0.09f, 0.25f, 1.5f, 90f);
 
-        // Ekor kuning-oranye lembut
+        // Trail oranye lembut
         trailLayer = CreateParticleLayer(
             "Trail",
-            new Color(1f, 0.8f, 0.2f, 0.8f),
+            new Color(1f, 0.8f, 0.3f, 0.9f),
             new Color(1f, 0.4f, 0f, 0f),
-            0.25f, 0.45f, 0.6f, 45f);
+            0.2f, 0.45f, 0.7f, 60f);
+
+        // Percikan kecil keluar (sparks)
+        sparkLayer = CreateParticleLayer(
+            "Sparks",
+            new Color(1f, 0.9f, 0.3f, 1f),
+            new Color(1f, 0.4f, 0f, 0f),
+            0.05f, 0.35f, 2.8f, 100f);
+
+        // Spark setting tambahan
+        var sparkShape = sparkLayer.shape;
+        sparkShape.shapeType = ParticleSystemShapeType.Sphere;
+        sparkShape.radius = 0.08f;
+
+        var sparkMain = sparkLayer.main;
+        sparkMain.startSpeed = 3.5f;
+        sparkMain.gravityModifier = 0.25f;
+
+        var sparkLimit = sparkLayer.limitVelocityOverLifetime;
+        sparkLimit.enabled = true;
+        sparkLimit.dampen = 0.2f;
+
+        var sparkTrails = sparkLayer.trails;
+        sparkTrails.enabled = true;
+        sparkTrails.lifetime = 0.15f;
+        sparkTrails.dieWithParticles = true;
     }
 
     private ParticleSystem CreateParticleLayer(string name, Color startColor, Color endColor, float size, float life, float speed, float emissionRate)
@@ -81,13 +110,13 @@ public class MagicTrailMouse : MonoBehaviour
         main.startSpeed = speed;
         main.startSize = size;
         main.startColor = startColor;
+        main.gravityModifier = 0f;
         main.scalingMode = ParticleSystemScalingMode.Local;
-        main.gravityModifier = 0;
-        main.maxParticles = 500;
+        main.maxParticles = 512;
 
         // === EMISSION ===
         emission.rateOverTime = emissionRate;
-        emission.rateOverDistance = emissionRate * 0.2f;
+        emission.rateOverDistance = emissionRate * 0.3f;
 
         // === SHAPE ===
         shape.shapeType = ParticleSystemShapeType.Cone;
@@ -101,13 +130,13 @@ public class MagicTrailMouse : MonoBehaviour
             new GradientColorKey[]
             {
                 new GradientColorKey(startColor, 0f),
-                new GradientColorKey(Color.white, 0.3f),
+                new GradientColorKey(Color.yellow, 0.3f),
                 new GradientColorKey(endColor, 1f)
             },
             new GradientAlphaKey[]
             {
                 new GradientAlphaKey(1f, 0f),
-                new GradientAlphaKey(0.7f, 0.7f),
+                new GradientAlphaKey(0.8f, 0.4f),
                 new GradientAlphaKey(0f, 1f)
             }
         );
@@ -125,7 +154,7 @@ public class MagicTrailMouse : MonoBehaviour
         renderer.sortingOrder = 3;
         renderer.alignment = ParticleSystemRenderSpace.View;
 
-        // === MATERIAL ADDITIVE URP ===
+        // === MATERIAL (URP additive) ===
         Material mat = new Material(Shader.Find("Universal Render Pipeline/Unlit"));
         mat.SetInt("_Surface", 1);
         mat.SetInt("_Blend", 1);
@@ -134,14 +163,12 @@ public class MagicTrailMouse : MonoBehaviour
         mat.SetInt("_DstBlend", (int)BlendMode.One);
         mat.renderQueue = (int)RenderQueue.Transparent;
         mat.EnableKeyword("_BLENDMODE_ADDITIVE");
-
-        // warna dasar diset putih supaya gradient dominan
         mat.SetColor("_BaseColor", Color.white);
 
-        // tekstur soft glow
+        // Soft particle texture (glow bulat)
         Texture2D softTex = MakeSoftParticleTexture(128);
         softTex.wrapMode = TextureWrapMode.Clamp;
-        softTex.filterMode = FilterMode.Bilinear;
+        softTex.filterMode = FilterMode.Trilinear;
         mat.mainTexture = softTex;
 
         renderer.material = mat;
@@ -153,20 +180,23 @@ public class MagicTrailMouse : MonoBehaviour
     private Texture2D MakeSoftParticleTexture(int size)
     {
         Texture2D tex = new Texture2D(size, size, TextureFormat.RGBA32, false);
+        Vector2 center = new Vector2(size / 2f, size / 2f);
+        float radius = size / 2f;
+
         for (int y = 0; y < size; y++)
         {
             for (int x = 0; x < size; x++)
             {
-                float dx = (x - size / 2f) / (size / 2f);
-                float dy = (y - size / 2f) / (size / 2f);
-                float dist = Mathf.Sqrt(dx * dx + dy * dy);
-                // lebih intens di tengah (gaussian)
-                float alpha = Mathf.Exp(-dist * dist * 4f);
-                float brightness = Mathf.Pow(alpha, 0.6f);
-                tex.SetPixel(x, y, new Color(brightness, brightness, brightness, alpha));
+                float dist = Vector2.Distance(center, new Vector2(x, y)) / radius;
+                float alpha = Mathf.Exp(-dist * dist * 5f);
+                float brightness = Mathf.Pow(alpha, 0.55f);
+                tex.SetPixel(x, y, new Color(brightness, brightness * 0.9f, brightness * 0.5f, alpha));
             }
         }
+
         tex.Apply();
+        tex.filterMode = FilterMode.Trilinear;
+        tex.anisoLevel = 4;
         return tex;
     }
 }
