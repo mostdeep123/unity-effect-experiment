@@ -3,104 +3,94 @@ using UnityEngine;
 public class FireTrailMouseMerged : MonoBehaviour
 {
     [Header("Trail Settings")]
-    public float followSpeed = 15f;
-    public float stopFadeDelay = 0.4f;
-    public float distanceEmissionRate = 8f;
+    public float followSpeed = 18f;
+    public float stopFadeDelay = 0.5f;
+    public float distanceEmissionRate = 10f;
     public float zOffset = 0.1f;
 
-    private ParticleSystem trailMain;
-    private ParticleSystem trailSparks;
-    private ParticleSystem trailEmbers;
+    private ParticleSystem coreTrail;
+    private ParticleSystem fireSparks;
+    private ParticleSystem fireEmbers;
 
-    private Vector3 targetPos;
     private Vector3 lastMousePos;
     private float stillTimer;
 
     void Start()
     {
         Cursor.visible = true;
-        targetPos = transform.position;
 
-        // === CORE KOMET (utama) ===
-        trailMain = CreateParticleLayer(
-            "MainTrail",
-            new Color(1f, 0.9f, 0.6f),   // putih kekuningan di tengah
-            new Color(1f, 0.4f, 0.05f),  // oranye di ujung
-            0.25f, 1.6f, 2.5f, 10f,
-            true // isCore = true (stretch)
+        // === Inti komet (core flame) ===
+        coreTrail = CreateParticleLayer(
+            "CoreTrail",
+            new Color(1f, 0.95f, 0.7f),  // putih kekuningan
+            new Color(1f, 0.4f, 0f),     // oranye ke merah
+            0.15f, 1.5f, 3.5f, 15f,
+            ParticleSystemRenderMode.Stretch,
+            2.2f
         );
 
-        // === PERCiKAN API ===
-        trailSparks = CreateParticleLayer(
+        // === Percikan api (sparks) ===
+        fireSparks = CreateParticleLayer(
             "Sparks",
             new Color(1f, 0.8f, 0.2f),
-            new Color(1f, 0.3f, 0f),
-            0.06f, 0.5f, 3f, 20f,
-            false
+            new Color(1f, 0.2f, 0f),
+            0.05f, 0.5f, 2.5f, 25f,
+            ParticleSystemRenderMode.Billboard,
+            1f
         );
 
-        // === BARA API ===
-        trailEmbers = CreateParticleLayer(
+        // === Bara api (embers) ===
+        fireEmbers = CreateParticleLayer(
             "Embers",
-            new Color(1f, 0.5f, 0.1f),
-            new Color(0.2f, 0.05f, 0f),
-            0.12f, 2.2f, 1f, 6f,
-            false
+            new Color(1f, 0.4f, 0f),
+            new Color(0.3f, 0.05f, 0f),
+            0.1f, 2.5f, 0.8f, 6f,
+            ParticleSystemRenderMode.Billboard,
+            1f
         );
 
-        // Sedikit variasi tambahan pada sparks dan embers
-        var shapeSpark = trailSparks.shape;
-        shapeSpark.shapeType = ParticleSystemShapeType.Cone;
-        shapeSpark.angle = 25f;
-        shapeSpark.radius = 0.05f;
+        // Tambah sedikit variasi bentuk sparks
+        var shapeSparks = fireSparks.shape;
+        shapeSparks.shapeType = ParticleSystemShapeType.Cone;
+        shapeSparks.angle = 25f;
+        shapeSparks.radius = 0.05f;
 
-        var embersEmission = trailEmbers.emission;
-        embersEmission.rateOverTime = 5f;
-
-        var embersNoise = trailEmbers.noise;
-        embersNoise.enabled = true;
-        embersNoise.strength = 0.3f;
-
-        // Aktifkan semua layer
-        trailMain.Play();
-        trailSparks.Play();
-        trailEmbers.Play();
+        // Bara bergetar lembut
+        var noise = fireEmbers.noise;
+        noise.enabled = true;
+        noise.strength = 0.3f;
     }
 
     void Update()
     {
         if (Camera.main == null) return;
 
-        // Konversi posisi mouse ke world
+        // === Konversi posisi mouse ke world ===
         Vector3 mouse = Input.mousePosition;
-        if (Camera.main.orthographic)
-            mouse.z = Camera.main.nearClipPlane + zOffset;
-        else
-            mouse.z = 10f;
+        mouse.z = 10f;
+        Vector3 world = Camera.main.ScreenToWorldPoint(mouse);
+        transform.position = Vector3.Lerp(transform.position, world, Time.deltaTime * followSpeed);
 
-        targetPos = Camera.main.ScreenToWorldPoint(mouse);
-        transform.position = Vector3.Lerp(transform.position, targetPos, Time.deltaTime * followSpeed);
-
-        // Cek apakah mouse diam
-        if ((Input.mousePosition - lastMousePos).sqrMagnitude < 1f)
+        // === Deteksi diam ===
+        if ((world - lastMousePos).sqrMagnitude < 0.0005f)
             stillTimer += Time.deltaTime;
         else
             stillTimer = 0f;
 
-        // Kurangi emisi kalau mouse diam
-        float alpha = Mathf.Clamp01(1f - (stillTimer / stopFadeDelay));
-        SetEmission(trailMain, distanceEmissionRate * alpha);
-        SetEmission(trailSparks, distanceEmissionRate * 2f * alpha);
-        SetEmission(trailEmbers, 4f * alpha);
+        float fade = Mathf.Clamp01(1f - stillTimer / stopFadeDelay);
 
-        lastMousePos = Input.mousePosition;
+        SetEmission(coreTrail, distanceEmissionRate * fade);
+        SetEmission(fireSparks, distanceEmissionRate * 1.8f * fade);
+        SetEmission(fireEmbers, distanceEmissionRate * 0.6f * fade);
+
+        lastMousePos = world;
     }
 
-    // === Membuat sistem partikel baru ===
-    private ParticleSystem CreateParticleLayer(string name, Color startColor, Color endColor, float size, float life, float speed, float emissionRate, bool isCore)
+    private ParticleSystem CreateParticleLayer(string name, Color startColor, Color endColor, float size, float life, float speed, float emissionRate, ParticleSystemRenderMode mode, float stretchLen)
     {
         GameObject go = new GameObject(name);
         go.transform.SetParent(transform);
+        go.transform.localPosition = Vector3.zero;
 
         var ps = go.AddComponent<ParticleSystem>();
         var main = ps.main;
@@ -122,21 +112,21 @@ public class FireTrailMouseMerged : MonoBehaviour
 
         // === EMISSION ===
         emission.rateOverTime = emissionRate;
-        emission.rateOverDistance = emissionRate * 0.5f;
+        emission.rateOverDistance = emissionRate * 0.4f;
 
         // === SHAPE ===
         shape.shapeType = ParticleSystemShapeType.Cone;
-        shape.angle = isCore ? 5f : 15f;
-        shape.radius = isCore ? 0.02f : 0.05f;
+        shape.angle = 10f;
+        shape.radius = 0.02f;
 
-        // === COLOR OVER LIFETIME ===
+        // === COLOR GRADIENT (gradasi kuning → oranye → merah) ===
         colorOverLifetime.enabled = true;
         Gradient grad = new Gradient();
         grad.SetKeys(
             new GradientColorKey[] {
                 new GradientColorKey(startColor, 0f),
-                new GradientColorKey(endColor, 0.5f),
-                new GradientColorKey(new Color(endColor.r, endColor.g, endColor.b, 0f), 1f)
+                new GradientColorKey(new Color(1f, 0.6f, 0.1f), 0.4f),
+                new GradientColorKey(endColor, 1f)
             },
             new GradientAlphaKey[] {
                 new GradientAlphaKey(1f, 0f),
@@ -153,22 +143,18 @@ public class FireTrailMouseMerged : MonoBehaviour
         sizeOverLifetime.size = new ParticleSystem.MinMaxCurve(1f, curve);
 
         // === RENDERER ===
-        if (isCore)
+        renderer.renderMode = mode;
+        if (mode == ParticleSystemRenderMode.Stretch)
         {
-            renderer.renderMode = ParticleSystemRenderMode.Stretch;
-            renderer.lengthScale = 1.8f;
-        }
-        else
-        {
-            renderer.renderMode = ParticleSystemRenderMode.Billboard;
+            renderer.lengthScale = stretchLen;
+            renderer.velocityScale = 0.3f;
         }
 
-        renderer.sortingOrder = isCore ? 3 : 2;
+        renderer.sortingOrder = 3;
         renderer.alignment = ParticleSystemRenderSpace.View;
 
-        // === MATERIAL (URP Additive Glow) ===
+        // === MATERIAL ADDITIVE URP ===
         Material mat = new Material(Shader.Find("Universal Render Pipeline/Unlit"));
-        mat.SetColor("_BaseColor", Color.white);
         mat.SetInt("_Surface", 1);
         mat.SetInt("_Blend", 1);
         mat.SetInt("_ZWrite", 0);
@@ -176,20 +162,15 @@ public class FireTrailMouseMerged : MonoBehaviour
         mat.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.One);
         mat.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent;
         mat.EnableKeyword("_BLENDMODE_ADDITIVE");
+        mat.SetColor("_BaseColor", Color.white);
 
-        // === TEXTURE SOFT GLOW ===
-        Texture2D softTex = MakeSoftParticleTexture(128);
-        softTex.filterMode = FilterMode.Trilinear;
-        softTex.wrapMode = TextureWrapMode.Clamp;
-        mat.mainTexture = softTex;
-
+        mat.mainTexture = MakeSoftParticleTexture(128);
         renderer.material = mat;
 
         ps.Play();
         return ps;
     }
 
-    // === Ubah emisi partikel ===
     private void SetEmission(ParticleSystem ps, float rate)
     {
         if (ps == null) return;
@@ -197,30 +178,21 @@ public class FireTrailMouseMerged : MonoBehaviour
         em.rateOverTime = rate;
     }
 
-    // === Membuat soft radial glow ===
     private Texture2D MakeSoftParticleTexture(int size)
     {
         Texture2D tex = new Texture2D(size, size, TextureFormat.RGBA32, false);
-        Color32[] pixels = new Color32[size * size];
-        Vector2 center = new Vector2(size / 2f, size / 2f);
-        float radius = size / 2f;
-
         for (int y = 0; y < size; y++)
         {
             for (int x = 0; x < size; x++)
             {
-                float dist = Vector2.Distance(center, new Vector2(x, y)) / radius;
-                float alpha = Mathf.Exp(-dist * dist * 5f);
-                float brightness = Mathf.Pow(alpha, 0.6f);
-                pixels[y * size + x] = new Color(brightness, brightness * 0.9f, brightness * 0.5f, alpha);
+                float dx = (x - size / 2f) / (size / 2f);
+                float dy = (y - size / 2f) / (size / 2f);
+                float dist = Mathf.Sqrt(dx * dx + dy * dy);
+                float alpha = Mathf.Clamp01(1f - dist * dist * 2.2f);
+                tex.SetPixel(x, y, new Color(1f, 0.9f, 0.6f, alpha));
             }
         }
-
-        tex.SetPixels32(pixels);
         tex.Apply();
-        tex.filterMode = FilterMode.Trilinear;
-        tex.anisoLevel = 4;
-        tex.wrapMode = TextureWrapMode.Clamp;
         return tex;
     }
 }
