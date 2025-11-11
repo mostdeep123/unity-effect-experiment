@@ -5,7 +5,6 @@ public class MagicTrailMouse : MonoBehaviour
 {
     private ParticleSystem coreLayer;
     private ParticleSystem trailLayer;
-    private ParticleSystem sparkLayer;
     private Vector3 lastMousePos;
 
     void Start()
@@ -15,23 +14,18 @@ public class MagicTrailMouse : MonoBehaviour
 
     void Update()
     {
-        if (Camera.main == null) return;
-
         Vector3 mousePos = Input.mousePosition;
         mousePos.z = 10f;
         Vector3 worldPos = Camera.main.ScreenToWorldPoint(mousePos);
 
-        // Gerak threshold kecil biar gak flicker
-        bool isMoving = Vector3.Distance(lastMousePos, worldPos) > 0.02f;
-        transform.position = worldPos;
-
-        if (isMoving)
+        if (Vector3.Distance(lastMousePos, worldPos) > 0.02f)
         {
+            transform.position = worldPos;
+
             if (!coreLayer.isEmitting)
             {
                 coreLayer.Play();
                 trailLayer.Play();
-                sparkLayer.Play();
             }
         }
         else
@@ -40,7 +34,6 @@ public class MagicTrailMouse : MonoBehaviour
             {
                 coreLayer.Stop(true, ParticleSystemStopBehavior.StopEmitting);
                 trailLayer.Stop(true, ParticleSystemStopBehavior.StopEmitting);
-                sparkLayer.Stop(true, ParticleSystemStopBehavior.StopEmitting);
             }
         }
 
@@ -49,47 +42,55 @@ public class MagicTrailMouse : MonoBehaviour
 
     private void CreateTrailEffect()
     {
-        // Inti api putih–kuning
+        // ===== CORE (putih ke kuning panas) =====
         coreLayer = CreateParticleLayer(
             "Core",
-            new Color(1f, 0.95f, 0.8f, 1f),
+            new Color(1f, 0.95f, 0.8f, 1f),  // putih kekuningan
             new Color(1f, 0.8f, 0.3f, 0f),
-            0.09f, 0.25f, 1.5f, 90f);
+            0.09f, 0.22f, 1.2f, 90f,
+            true
+        );
 
-        // Trail oranye lembut
+        // ===== TRAIL (gradasi api oranye ke merah) =====
         trailLayer = CreateParticleLayer(
             "Trail",
-            new Color(1f, 0.8f, 0.3f, 0.9f),
-            new Color(1f, 0.4f, 0f, 0f),
-            0.2f, 0.45f, 0.7f, 60f);
+            new Color(1f, 0.85f, 0.2f, 0.9f),   // kuning-oranye
+            new Color(1f, 0.1f, 0f, 0f),        // merah gelap di ujung
+            0.22f, 0.45f, 0.9f, 50f,
+            false
+        );
 
-        // Percikan kecil keluar (sparks)
-        sparkLayer = CreateParticleLayer(
+        // ===== SPARKS =====
+        var spark = CreateParticleLayer(
             "Sparks",
-            new Color(1f, 0.9f, 0.3f, 1f),
-            new Color(1f, 0.4f, 0f, 0f),
-            0.05f, 0.35f, 2.8f, 100f);
+            new Color(1f, 0.9f, 0.4f, 1f),
+            new Color(1f, 0.2f, 0f, 0f),
+            0.05f, 0.35f, 3f, 100f,
+            false
+        );
 
-        // Spark setting tambahan
-        var sparkShape = sparkLayer.shape;
-        sparkShape.shapeType = ParticleSystemShapeType.Sphere;
-        sparkShape.radius = 0.08f;
+        var sshape = spark.shape;
+        sshape.shapeType = ParticleSystemShapeType.Sphere;
+        sshape.radius = 0.08f;
 
-        var sparkMain = sparkLayer.main;
-        sparkMain.startSpeed = 3.5f;
-        sparkMain.gravityModifier = 0.25f;
+        var smain = spark.main;
+        smain.gravityModifier = 0.4f;
+        smain.startSpeed = 3.2f;
 
-        var sparkLimit = sparkLayer.limitVelocityOverLifetime;
-        sparkLimit.enabled = true;
-        sparkLimit.dampen = 0.2f;
-
-        var sparkTrails = sparkLayer.trails;
-        sparkTrails.enabled = true;
-        sparkTrails.lifetime = 0.15f;
-        sparkTrails.dieWithParticles = true;
+        var slimit = spark.limitVelocityOverLifetime;
+        slimit.enabled = true;
+        slimit.dampen = 0.25f;
     }
 
-    private ParticleSystem CreateParticleLayer(string name, Color startColor, Color endColor, float size, float life, float speed, float emissionRate)
+    private ParticleSystem CreateParticleLayer(
+        string name,
+        Color startColor,
+        Color endColor,
+        float size,
+        float life,
+        float speed,
+        float emissionRate,
+        bool intenseCore = false)
     {
         GameObject go = new GameObject(name);
         go.transform.SetParent(transform);
@@ -99,8 +100,8 @@ public class MagicTrailMouse : MonoBehaviour
         var main = ps.main;
         var emission = ps.emission;
         var shape = ps.shape;
-        var colorOverLifetime = ps.colorOverLifetime;
-        var sizeOverLifetime = ps.sizeOverLifetime;
+        var col = ps.colorOverLifetime;
+        var sizeOver = ps.sizeOverLifetime;
         var renderer = ps.GetComponent<ParticleSystemRenderer>();
 
         // === MAIN ===
@@ -110,51 +111,53 @@ public class MagicTrailMouse : MonoBehaviour
         main.startSpeed = speed;
         main.startSize = size;
         main.startColor = startColor;
-        main.gravityModifier = 0f;
         main.scalingMode = ParticleSystemScalingMode.Local;
-        main.maxParticles = 512;
+        main.gravityModifier = 0;
+        main.maxParticles = 600;
 
         // === EMISSION ===
         emission.rateOverTime = emissionRate;
-        emission.rateOverDistance = emissionRate * 0.3f;
+        emission.rateOverDistance = emissionRate * 0.25f;
 
         // === SHAPE ===
         shape.shapeType = ParticleSystemShapeType.Cone;
-        shape.angle = 12f;
+        shape.angle = 10f;
         shape.radius = 0.015f;
 
         // === COLOR OVER LIFETIME ===
-        colorOverLifetime.enabled = true;
+        col.enabled = true;
         Gradient grad = new Gradient();
+        grad.mode = GradientMode.Blend;
         grad.SetKeys(
             new GradientColorKey[]
             {
-                new GradientColorKey(startColor, 0f),
-                new GradientColorKey(Color.yellow, 0.3f),
-                new GradientColorKey(endColor, 1f)
+                new GradientColorKey(Color.white, 0f),
+                new GradientColorKey(new Color(1f, 0.9f, 0.4f), 0.25f),
+                new GradientColorKey(new Color(1f, 0.6f, 0.1f), 0.6f),
+                new GradientColorKey(new Color(1f, 0.2f, 0f), 1f)
             },
             new GradientAlphaKey[]
             {
                 new GradientAlphaKey(1f, 0f),
-                new GradientAlphaKey(0.8f, 0.4f),
+                new GradientAlphaKey(0.8f, 0.5f),
                 new GradientAlphaKey(0f, 1f)
             }
         );
-        colorOverLifetime.color = grad;
+        col.color = grad;
 
         // === SIZE OVER LIFETIME ===
-        sizeOverLifetime.enabled = true;
+        sizeOver.enabled = true;
         AnimationCurve curve = new AnimationCurve();
         curve.AddKey(0f, 1f);
         curve.AddKey(1f, 0f);
-        sizeOverLifetime.size = new ParticleSystem.MinMaxCurve(1f, curve);
+        sizeOver.size = new ParticleSystem.MinMaxCurve(1f, curve);
 
         // === RENDERER ===
         renderer.renderMode = ParticleSystemRenderMode.Billboard;
         renderer.sortingOrder = 3;
         renderer.alignment = ParticleSystemRenderSpace.View;
 
-        // === MATERIAL (URP additive) ===
+        // === MATERIAL ===
         Material mat = new Material(Shader.Find("Universal Render Pipeline/Unlit"));
         mat.SetInt("_Surface", 1);
         mat.SetInt("_Blend", 1);
@@ -163,14 +166,13 @@ public class MagicTrailMouse : MonoBehaviour
         mat.SetInt("_DstBlend", (int)BlendMode.One);
         mat.renderQueue = (int)RenderQueue.Transparent;
         mat.EnableKeyword("_BLENDMODE_ADDITIVE");
-        mat.SetColor("_BaseColor", Color.white);
 
-        // Soft particle texture (glow bulat)
-        Texture2D softTex = MakeSoftParticleTexture(128);
-        softTex.wrapMode = TextureWrapMode.Clamp;
-        softTex.filterMode = FilterMode.Trilinear;
-        mat.mainTexture = softTex;
+        if (intenseCore)
+            mat.SetColor("_BaseColor", new Color(1f, 0.8f, 0.4f, 1f)); // kuning terang
+        else
+            mat.SetColor("_BaseColor", new Color(1f, 0.6f, 0.2f, 1f)); // oranye lembut
 
+        mat.mainTexture = MakeSoftParticleTexture(128);
         renderer.material = mat;
 
         ps.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
@@ -180,23 +182,19 @@ public class MagicTrailMouse : MonoBehaviour
     private Texture2D MakeSoftParticleTexture(int size)
     {
         Texture2D tex = new Texture2D(size, size, TextureFormat.RGBA32, false);
-        Vector2 center = new Vector2(size / 2f, size / 2f);
-        float radius = size / 2f;
-
         for (int y = 0; y < size; y++)
         {
             for (int x = 0; x < size; x++)
             {
-                float dist = Vector2.Distance(center, new Vector2(x, y)) / radius;
-                float alpha = Mathf.Exp(-dist * dist * 5f);
-                float brightness = Mathf.Pow(alpha, 0.55f);
-                tex.SetPixel(x, y, new Color(brightness, brightness * 0.9f, brightness * 0.5f, alpha));
+                float dx = (x - size / 2f) / (size / 2f);
+                float dy = (y - size / 2f) / (size / 2f);
+                float dist = Mathf.Sqrt(dx * dx + dy * dy);
+                float alpha = Mathf.Exp(-dist * dist * 4f);
+                float brightness = Mathf.Pow(alpha, 0.7f);
+                tex.SetPixel(x, y, new Color(brightness, brightness, brightness, alpha));
             }
         }
-
         tex.Apply();
-        tex.filterMode = FilterMode.Trilinear;
-        tex.anisoLevel = 4;
         return tex;
     }
 }
