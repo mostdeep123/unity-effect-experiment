@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering;
 
@@ -6,12 +7,21 @@ public class MagicTrailMouse : MonoBehaviour
     private ParticleSystem coreLayer;
     private ParticleSystem trailLayer;
     private ParticleSystem sparkLayer;
+    private ParticleSystem flameLayer;
+
+    private LineRenderer flameLine; // 🔥 garis merah halus menyala
+    private List<Vector3> flamePositions = new List<Vector3>();
+    private int maxFlamePoints = 5;
+    private float smoothSpeed = 14f;
 
     private Vector3 lastMousePos;
+
+    private Vector3 prevDirection = Vector3.back; // simpan arah sebelumnya agar stabil
 
     void Start()
     {
         CreateTrailEffect();
+        CreateFlameLine(); // 🔥 efek garis merah menyala
     }
 
     void Update()
@@ -25,6 +35,7 @@ public class MagicTrailMouse : MonoBehaviour
         bool isMoving = Vector3.Distance(lastMousePos, worldPos) > 0.01f;
         transform.position = worldPos;
 
+        // kontrol partikel
         if (isMoving)
         {
             if (!coreLayer.isEmitting)
@@ -32,6 +43,7 @@ public class MagicTrailMouse : MonoBehaviour
                 coreLayer.Play();
                 trailLayer.Play();
                 sparkLayer.Play();
+                flameLayer.Play();
             }
         }
         else
@@ -41,15 +53,138 @@ public class MagicTrailMouse : MonoBehaviour
                 coreLayer.Stop(true, ParticleSystemStopBehavior.StopEmitting);
                 trailLayer.Stop(true, ParticleSystemStopBehavior.StopEmitting);
                 sparkLayer.Stop(true, ParticleSystemStopBehavior.StopEmitting);
+                flameLayer.Stop(true, ParticleSystemStopBehavior.StopEmitting);
             }
         }
+
+        // update garis merah
+        UpdateFlameLine(worldPos, isMoving);
 
         lastMousePos = worldPos;
     }
 
+    // ===========================================================
+    // 🔥 LINE RENDERER TRAIL MERAH
+    // ===========================================================
+    private void CreateFlameLine()
+    {
+        GameObject lineObj = new GameObject("FlameLine");
+        lineObj.transform.SetParent(transform);
+        lineObj.transform.localPosition = Vector3.zero;
+
+        flameLine = lineObj.AddComponent<LineRenderer>();
+        flameLine.positionCount = 0;
+        flameLine.startWidth = 0.09f;
+        flameLine.endWidth = 0.02f;
+        flameLine.numCapVertices = 6;
+
+        Gradient grad = new Gradient();
+        grad.SetKeys(
+            new GradientColorKey[]
+            {
+                new GradientColorKey(new Color(1f, 0.15f, 0f), 0f),
+                new GradientColorKey(new Color(0.3f, 0f, 0f), 1f)
+            },
+            new GradientAlphaKey[]
+            {
+                new GradientAlphaKey(1f, 0f),
+                new GradientAlphaKey(0f, 1f)
+            }
+        );
+        flameLine.colorGradient = grad;
+
+        Material mat = new Material(Shader.Find("Universal Render Pipeline/Unlit"));
+        mat.SetInt("_Surface", 1);
+        mat.SetInt("_Blend", 1);
+        mat.SetInt("_ZWrite", 0);
+        mat.SetInt("_SrcBlend", (int)BlendMode.One);
+        mat.SetInt("_DstBlend", (int)BlendMode.One);
+        mat.renderQueue = (int)RenderQueue.Transparent;
+        mat.EnableKeyword("_BLENDMODE_ADDITIVE");
+        mat.SetColor("_BaseColor", Color.red);
+        flameLine.material = mat;
+    }
+
+   private void UpdateFlameLine(Vector3 worldPos, bool isMoving)
+    {
+        if (flameLine == null) return;
+        flameLine.enabled = isMoving;
+
+        if (!isMoving)
+        {
+            flamePositions.Clear();
+            flameLine.positionCount = 0;
+            prevDirection = Vector3.back;
+            return;
+        }
+
+        // Hitung arah gerak (fallback ke arah sebelumnya)
+        Vector3 rawDir = worldPos - lastMousePos;
+        Vector3 dir = rawDir.sqrMagnitude > 1e-6f ? rawDir.normalized : prevDirection;
+        prevDirection = dir;
+
+        // Kepala (headPos) lerp biar halus
+        float headLerp = Mathf.Clamp01(Time.deltaTime * (smoothSpeed * 2f));
+        Vector3 headPos = flamePositions.Count > 0
+            ? Vector3.Lerp(flamePositions[0], worldPos, headLerp)
+            : worldPos;
+
+        // Jarak antar segmen — lebih besar biar panjang
+        float segmentDist = 0.08f; // default 0.06, ini lebih panjang
+
+        // Panjang total ekor = segmentDist * maxFlamePoints
+        if (flamePositions.Count != maxFlamePoints)
+        {
+            flamePositions.Clear();
+            for (int i = 0; i < maxFlamePoints; i++)
+                flamePositions.Add(headPos - dir * segmentDist * i);
+        }
+        else
+        {
+            // Set posisi setiap segmen sepanjang garis lurus
+            for (int i = 0; i < maxFlamePoints; i++)
+            {
+                Vector3 pos = headPos - dir * segmentDist * i;
+
+                // Tambahkan sedikit getaran “api hidup”
+                float wave = Mathf.Sin(Time.time * 25f + i * 0.5f) * 0.02f * (1f - i / (float)maxFlamePoints);
+                Vector3 side = Vector3.Cross(dir, Vector3.forward).normalized;
+                pos += side * wave;
+
+                flamePositions[i] = pos;
+            }
+        }
+
+        flameLine.positionCount = flamePositions.Count;
+        flameLine.SetPositions(flamePositions.ToArray());
+
+        // (Opsional) warna api gradasi
+        if (flameLine.colorGradient == null)
+        {
+            Gradient g = new Gradient();
+            g.SetKeys(
+                new GradientColorKey[]
+                {
+                    new GradientColorKey(new Color(1f, 0.9f, 0.5f), 0f),
+                    new GradientColorKey(new Color(1f, 0.5f, 0.1f), 0.5f),
+                    new GradientColorKey(new Color(0.3f, 0.05f, 0f), 1f)
+                },
+                new GradientAlphaKey[]
+                {
+                    new GradientAlphaKey(1f, 0f),
+                    new GradientAlphaKey(0f, 1f)
+                }
+            );
+            flameLine.colorGradient = g;
+        }
+    }
+
+    // ===========================================================
+    // ✨ LAYER PARTIKEL
+    // ===========================================================
     private void CreateTrailEffect()
     {
-        // 🌕 Inti cahaya — besar dan halus
+        // 🌕 Inti cahaya
         coreLayer = CreateParticleLayer(
             "Core",
             new Color(1f, 0.95f, 0.8f),
@@ -58,7 +193,7 @@ public class MagicTrailMouse : MonoBehaviour
             true
         );
 
-        // 🔥 Ekor — memanjang ke belakang
+        // 🔥 Ekor oranye lembut
         trailLayer = CreateParticleLayer(
             "Trail",
             new Color(1f, 0.8f, 0.4f, 0.9f),
@@ -67,7 +202,7 @@ public class MagicTrailMouse : MonoBehaviour
             false
         );
 
-        // ⚡ Percikan api — menyebar ke luar
+        // ⚡ Percikan luar
         sparkLayer = CreateParticleLayer(
             "Sparks",
             new Color(1f, 0.9f, 0.5f),
@@ -82,13 +217,11 @@ public class MagicTrailMouse : MonoBehaviour
         smain.startSize = new ParticleSystem.MinMaxCurve(0.07f, 0.14f);
         smain.startLifetime = new ParticleSystem.MinMaxCurve(0.4f, 0.8f);
 
-        // Bentuk menyebar — seperti percikan api keluar
         var sshape = sparkLayer.shape;
         sshape.shapeType = ParticleSystemShapeType.Cone;
         sshape.angle = 40f;
         sshape.radius = 0.08f;
 
-        // Membuat percikan melengkung
         var velocity = sparkLayer.velocityOverLifetime;
         velocity.enabled = true;
         velocity.space = ParticleSystemSimulationSpace.Local;
@@ -96,14 +229,38 @@ public class MagicTrailMouse : MonoBehaviour
         velocity.y = new ParticleSystem.MinMaxCurve(0.5f, 2.4f);
         velocity.z = new ParticleSystem.MinMaxCurve(-1.2f, 1.2f);
 
-        var limit = sparkLayer.limitVelocityOverLifetime;
-        limit.enabled = true;
-        limit.dampen = 0.35f;
+        // 🔥 Lidah api merah
+        flameLayer = CreateParticleLayer(
+            "Flame",
+            new Color(1f, 0.15f, 0f, 0.9f),
+            new Color(1f, 0.02f, 0f, 0f),
+            0.12f, 0.55f, 0.6f, 160f,
+            false
+        );
 
-        // Random rotasi & ukuran
-        var rotation = sparkLayer.rotationOverLifetime;
-        rotation.enabled = true;
-        rotation.z = new ParticleSystem.MinMaxCurve(-180f, 180f);
+        var fshape = flameLayer.shape;
+        fshape.shapeType = ParticleSystemShapeType.Cone;
+        fshape.angle = 6f;
+        fshape.radius = 0.02f;
+        fshape.rotation = new Vector3(180f, 0f, 0f);
+
+        var fmain = flameLayer.main;
+        fmain.gravityModifier = 0f;
+        fmain.startSpeed = new ParticleSystem.MinMaxCurve(2.2f, 3.5f);
+        fmain.startSize = new ParticleSystem.MinMaxCurve(0.06f, 0.1f);
+        fmain.startLifetime = new ParticleSystem.MinMaxCurve(0.35f, 0.55f);
+
+        var fvel = flameLayer.velocityOverLifetime;
+        fvel.enabled = true;
+        fvel.space = ParticleSystemSimulationSpace.World;
+        fvel.z = new ParticleSystem.MinMaxCurve(-4.5f, -6f);
+
+        var fnoise = flameLayer.noise;
+        fnoise.enabled = true;
+        fnoise.strength = 0.1f;
+        fnoise.frequency = 1.5f;
+        fnoise.scrollSpeed = 0.5f;
+        fnoise.octaveCount = 1;
     }
 
     private ParticleSystem CreateParticleLayer(
@@ -129,7 +286,6 @@ public class MagicTrailMouse : MonoBehaviour
         var sizeOver = ps.sizeOverLifetime;
         var renderer = ps.GetComponent<ParticleSystemRenderer>();
 
-        // === MAIN ===
         main.loop = true;
         main.simulationSpace = ParticleSystemSimulationSpace.World;
         main.startLifetime = life;
@@ -139,45 +295,36 @@ public class MagicTrailMouse : MonoBehaviour
         main.maxParticles = 2000;
         main.scalingMode = ParticleSystemScalingMode.Local;
 
-        // === EMISSION ===
         emission.rateOverTime = emissionRate;
 
-        // === SHAPE ===
         shape.shapeType = ParticleSystemShapeType.Cone;
         shape.angle = 12f;
         shape.radius = 0.03f;
 
-        // === COLOR OVER LIFETIME ===
         col.enabled = true;
         Gradient grad = new Gradient();
         grad.SetKeys(
             new GradientColorKey[] {
                 new GradientColorKey(startColor, 0f),
-                new GradientColorKey(new Color(1f, 0.8f, 0.3f), 0.3f),
-                new GradientColorKey(endColor, 0.6f),
-                new GradientColorKey(new Color(endColor.r, endColor.g, endColor.b, 0f), 1f)
+                new GradientColorKey(endColor, 1f)
             },
             new GradientAlphaKey[] {
                 new GradientAlphaKey(1f, 0f),
-                new GradientAlphaKey(0.8f, 0.5f),
                 new GradientAlphaKey(0f, 1f)
             }
         );
         col.color = grad;
 
-        // === SIZE OVER LIFETIME ===
         sizeOver.enabled = true;
         AnimationCurve curve = new AnimationCurve();
         curve.AddKey(0f, 1f);
         curve.AddKey(1f, 0f);
         sizeOver.size = new ParticleSystem.MinMaxCurve(1f, curve);
 
-        // === RENDERER ===
         renderer.renderMode = ParticleSystemRenderMode.Billboard;
         renderer.sortingOrder = intenseCore ? 3 : 2;
         renderer.alignment = ParticleSystemRenderSpace.View;
 
-        // === MATERIAL ===
         Material mat = new Material(Shader.Find("Universal Render Pipeline/Unlit"));
         mat.SetInt("_Surface", 1);
         mat.SetInt("_Blend", 1);
@@ -186,9 +333,7 @@ public class MagicTrailMouse : MonoBehaviour
         mat.SetInt("_DstBlend", (int)BlendMode.One);
         mat.renderQueue = (int)RenderQueue.Transparent;
         mat.EnableKeyword("_BLENDMODE_ADDITIVE");
-        mat.SetColor("_BaseColor", intenseCore
-            ? new Color(1f, 0.95f, 0.7f, 1f)
-            : new Color(1f, 0.6f, 0.2f, 1f));
+        mat.SetColor("_BaseColor", startColor);
         mat.mainTexture = MakeSoftCometTexture(192);
 
         renderer.material = mat;
