@@ -66,6 +66,9 @@ public class MagicTrailMouse : MonoBehaviour
     // ===========================================================
     // 🔥 LINE RENDERER TRAIL MERAH
     // ===========================================================
+   // ===========================================================
+    // 🔥 LINE RENDERER TRAIL MERAH MENYALA TERANG
+    // ===========================================================
     private void CreateFlameLine()
     {
         GameObject lineObj = new GameObject("FlameLine");
@@ -74,34 +77,46 @@ public class MagicTrailMouse : MonoBehaviour
 
         flameLine = lineObj.AddComponent<LineRenderer>();
         flameLine.positionCount = 0;
-        flameLine.startWidth = 0.09f;
-        flameLine.endWidth = 0.02f;
-        flameLine.numCapVertices = 6;
+        flameLine.numCapVertices = 8;
+        flameLine.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        flameLine.receiveShadows = false;
+        flameLine.alignment = LineAlignment.View;
 
+        // Lebar lebih besar agar jelas dan taper halus ke ujung
+        AnimationCurve widthCurve = new AnimationCurve();
+        widthCurve.AddKey(0f, 1.2f);
+        widthCurve.AddKey(0.5f, 0.5f);
+        widthCurve.AddKey(1f, 0.05f);
+        flameLine.widthCurve = widthCurve;
+        flameLine.widthMultiplier = 0.09f;
+
+        // Warna gradasi lebih menyala (kuning → oranye → merah)
         Gradient grad = new Gradient();
         grad.SetKeys(
             new GradientColorKey[]
             {
-                new GradientColorKey(new Color(1f, 0.15f, 0f), 0f),
-                new GradientColorKey(new Color(0.3f, 0f, 0f), 1f)
+                new GradientColorKey(new Color(1f, 0.9f, 0.4f), 0f),
+                new GradientColorKey(new Color(1f, 0.4f, 0.05f), 0.4f),
+                new GradientColorKey(new Color(0.3f, 0.02f, 0f), 1f)
             },
             new GradientAlphaKey[]
             {
                 new GradientAlphaKey(1f, 0f),
+                new GradientAlphaKey(0.6f, 0.4f),
                 new GradientAlphaKey(0f, 1f)
             }
         );
         flameLine.colorGradient = grad;
 
-        Material mat = new Material(Shader.Find("Universal Render Pipeline/Unlit"));
-        mat.SetInt("_Surface", 1);
+        // 🔥 Material dengan emisi glow additive
+        Material mat = new Material(Shader.Find("Universal Render Pipeline/Particles/Unlit"));
+        mat.SetFloat("_Surface", 1);
         mat.SetInt("_Blend", 1);
         mat.SetInt("_ZWrite", 0);
         mat.SetInt("_SrcBlend", (int)BlendMode.One);
         mat.SetInt("_DstBlend", (int)BlendMode.One);
-        mat.renderQueue = (int)RenderQueue.Transparent;
         mat.EnableKeyword("_BLENDMODE_ADDITIVE");
-        mat.SetColor("_BaseColor", Color.red);
+        mat.SetColor("_BaseColor", new Color(1f, 0.4f, 0.1f, 1f)); // oranye menyala
         flameLine.material = mat;
     }
 
@@ -118,21 +133,17 @@ public class MagicTrailMouse : MonoBehaviour
             return;
         }
 
-        // Hitung arah gerak (fallback ke arah sebelumnya)
         Vector3 rawDir = worldPos - lastMousePos;
         Vector3 dir = rawDir.sqrMagnitude > 1e-6f ? rawDir.normalized : prevDirection;
         prevDirection = dir;
 
-        // Kepala (headPos) lerp biar halus
         float headLerp = Mathf.Clamp01(Time.deltaTime * (smoothSpeed * 2f));
         Vector3 headPos = flamePositions.Count > 0
             ? Vector3.Lerp(flamePositions[0], worldPos, headLerp)
             : worldPos;
 
-        // Jarak antar segmen — lebih besar biar panjang
-        float segmentDist = 0.08f; // default 0.06, ini lebih panjang
+        float segmentDist = 0.08f;
 
-        // Panjang total ekor = segmentDist * maxFlamePoints
         if (flamePositions.Count != maxFlamePoints)
         {
             flamePositions.Clear();
@@ -141,13 +152,12 @@ public class MagicTrailMouse : MonoBehaviour
         }
         else
         {
-            // Set posisi setiap segmen sepanjang garis lurus
             for (int i = 0; i < maxFlamePoints; i++)
             {
                 Vector3 pos = headPos - dir * segmentDist * i;
 
-                // Tambahkan sedikit getaran “api hidup”
-                float wave = Mathf.Sin(Time.time * 25f + i * 0.5f) * 0.02f * (1f - i / (float)maxFlamePoints);
+                // Efek “nyala hidup” lebih kuat dan sedikit acak
+                float wave = Mathf.Sin(Time.time * 30f + i * 0.6f) * 0.015f * (1f - i / (float)maxFlamePoints);
                 Vector3 side = Vector3.Cross(dir, Vector3.forward).normalized;
                 pos += side * wave;
 
@@ -158,25 +168,9 @@ public class MagicTrailMouse : MonoBehaviour
         flameLine.positionCount = flamePositions.Count;
         flameLine.SetPositions(flamePositions.ToArray());
 
-        // (Opsional) warna api gradasi
-        if (flameLine.colorGradient == null)
-        {
-            Gradient g = new Gradient();
-            g.SetKeys(
-                new GradientColorKey[]
-                {
-                    new GradientColorKey(new Color(1f, 0.9f, 0.5f), 0f),
-                    new GradientColorKey(new Color(1f, 0.5f, 0.1f), 0.5f),
-                    new GradientColorKey(new Color(0.3f, 0.05f, 0f), 1f)
-                },
-                new GradientAlphaKey[]
-                {
-                    new GradientAlphaKey(1f, 0f),
-                    new GradientAlphaKey(0f, 1f)
-                }
-            );
-            flameLine.colorGradient = g;
-        }
+        // ✨ Oscillate width supaya seperti “denyut api”
+        float flicker = 1f + Mathf.Sin(Time.time * 8f) * 0.15f;
+        flameLine.widthMultiplier = 0.09f * flicker;
     }
 
     // ===========================================================
